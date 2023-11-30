@@ -1,24 +1,25 @@
 // background.js
 
 let isRecording = false
+let chunkCounter = 0
 
 // Listen for messages from content scripts
 browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message.videoData) {
-    // Extract the relevant parts of the URL
+  if (message.videoChunk) {
+    chunkCounter++
+
     const url = new URL(sender.tab.url)
     const hostname = url.hostname.replace(/\./g, '-') // Replace dots with dashes
     const pathname = url.pathname.replace(/^\//, '') // Remove the leading slash
-    const filename = `${hostname}-${pathname}.webm`
+    const filename = `chunk_${chunkCounter}.webm` // Unique filename for each chunk
 
-    // Convert base64 to a blob
-    fetch(message.videoData)
+    fetch(message.videoChunk)
       .then(res => res.blob())
       .then(blob => {
         const url = URL.createObjectURL(blob)
         browser.downloads.download({
           url: url,
-          filename: filename
+          filename: hostname + '/' + pathname + '/' + filename
         })
       })
   }
