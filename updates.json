@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "unfucker@example.com": {
+      "updates": [
+        {
+          "version": "0.0.0",
+          "update_link": "https://github.com/softmix/puzzcam/releases/download/0.0.0/puzzler.xpi"
+        }
+      ]
+    }
+  }
+}
