@@ -4,18 +4,28 @@
 desired_file_size_mb=1.8
 kilobits_per_mb=8192
 initial_bitrate_kbps=250  # Starting bitrate, adjust as needed
+desired_duration=60       # Desired duration in seconds
 
-# Check if there are any subdirectories
-if [ -z "$(ls -d */)" ]; then
-    echo "No subdirectories found. Exiting."
-    exit 1
+# Check if a specific subdirectory is given as an argument
+if [ $# -eq 1 ]; then
+    directories=($1/)
+else
+    # Check if there are any subdirectories
+    if [ -z "$(ls -d */)" ]; then
+        echo "No subdirectories found. Exiting."
+        exit 1
+    fi
+    directories=(*/)
 fi
 
-# Desired duration is 60 seconds (1 minute)
-desired_duration=60
+# Loop through each specified directory
+for dir in "${directories[@]}"; do
+    # Check if directory exists
+    if [ ! -d "$dir" ]; then
+        echo "Directory $dir does not exist. Skipping."
+        continue
+    fi
 
-# Loop through each subdirectory
-for dir in */; do
     # Change into the directory
     cd "$dir"
 
@@ -37,7 +47,7 @@ for dir in */; do
 
         # Calculate total duration of the video in seconds
         total_duration=$(ffprobe -v error -show_entries format=duration -of default=noprint_wrappers=1:nokey=1 "$final_output_file")
-        
+
         # Check if total_duration is a valid number
         if ! [[ $total_duration =~ ^[0-9]+(\.[0-9]+)?$ ]]; then
             echo "Invalid total duration for $dir. Skipping."
@@ -77,9 +87,9 @@ for dir in */; do
 
             echo "Iteration $i: Bitrate = ${initial_bitrate_kbps}kbps"
 
-            # Two-pass encoding with current bitrate
-            ffmpeg -y -loglevel warning -i "$dir$final_output_file" -vf "setpts=PTS/$factor,crop=${w}:${h}:${x}:${y}" -c:v libvpx-vp9 -b:v ${initial_bitrate_kbps}k -pass 1 -vsync vfr -an -f webm /dev/null && \
-            ffmpeg -y -loglevel warning -i "$dir$final_output_file" -vf "setpts=PTS/$factor,crop=${w}:${h}:${x}:${y}" -c:v libvpx-vp9 -b:v ${initial_bitrate_kbps}k -pass 2 -vsync vfr -an "$final_output"
+            # Two-pass encoding with current bitrate and scaling
+            ffmpeg -y -loglevel warning -i "$dir$final_output_file" -vf "setpts=PTS/$factor,crop=${w}:${h}:${x}:${y},scale='min(iw,2048)':'min(ih,2048)':force_original_aspect_ratio=decrease" -r 30 -c:v libvpx-vp9 -b:v ${initial_bitrate_kbps}k -pass 1 -vsync vfr -an -f webm /dev/null && \
+            ffmpeg -y -i "$dir$final_output_file" -vf "setpts=PTS/$factor,crop=${w}:${h}:${x}:${y},scale='min(iw,2048)':'min(ih,2048)':force_original_aspect_ratio=decrease" -r 30 -c:v libvpx-vp9 -b:v ${initial_bitrate_kbps}k -pass 2 -vsync vfr -an "$final_output"
 
             # Check file size
             actual_size_kb=$(du -k "$final_output" | cut -f1)
@@ -94,14 +104,14 @@ for dir in */; do
             initial_bitrate_kbps=$(echo "scale=2; $initial_bitrate_kbps / $size_ratio" | bc)
             initial_bitrate_kbps=${initial_bitrate_kbps%.*}  # Convert to integer
 
-            # Add a check to prevent extreme bitrate adjustments
+            # Limit bitrate to prevent extreme adjustments
             if [ $initial_bitrate_kbps -le 100 ]; then
                 initial_bitrate_kbps=100
             elif [ $initial_bitrate_kbps -ge 5000 ]; then
                 initial_bitrate_kbps=5000
             fi
 
-            # Check if the size is within an acceptable range (e.g., +/- 5%)
+            # Check if the size is within an acceptable range
             if (( $(echo "$actual_size_mb >= (0.95 * $desired_file_size_mb)" | bc -l) )) && (( $(echo "$actual_size_mb <= (1.05 * $desired_file_size_mb)" | bc -l) )); then
                 break
             fi
