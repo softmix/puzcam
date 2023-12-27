@@ -87,7 +87,7 @@ function startRecording() {
     }
 
     // Find the original canvas
-    const originalCanvas = document.getElementById('canvas')
+    const originalCanvas = document.querySelector("main > canvas")
     if (!originalCanvas) {
         console.error("Canvas not found")
         return
